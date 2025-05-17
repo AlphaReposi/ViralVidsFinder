@@ -1,0 +1,13 @@
+Flask
+flask_sqlalchemy
+flask_jwt_extended
+flask_login
+python-dotenv
+requests
+yt-dlp
+cfscrape
+pytubefix
+stripe
+Werkzeug
+fake-headers
+numerize-denumerize
