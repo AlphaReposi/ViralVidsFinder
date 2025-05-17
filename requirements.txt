@@ -11,3 +11,4 @@ stripe
 Werkzeug
 fake-headers
 numerize-denumerize
+urllib3==1.26.16
