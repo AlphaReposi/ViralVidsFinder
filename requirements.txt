@@ -13,4 +13,4 @@ fake-headers
 numerize-denumerize
 urllib3==1.26.16
 psycopg2-binary
-pip install flask-cors
+flask-cors
