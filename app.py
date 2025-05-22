@@ -24,11 +24,13 @@ from datetime import timedelta
 from concurrent.futures import ThreadPoolExecutor
 from fake_headers import Headers
 from numerize_denumerize import denumerize
+from flask_cors import CORS
 
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
 app = Flask(__name__)
+CORS(app)
 app.config.from_object(config.config)
 db.init_app(app)
 
