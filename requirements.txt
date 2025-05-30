@@ -14,3 +14,4 @@ numerize-denumerize
 urllib3==1.26.16
 psycopg2-binary
 flask-cors
+beautifulsoup4
