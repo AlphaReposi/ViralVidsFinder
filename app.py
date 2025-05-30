@@ -25,6 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fake_headers import Headers
 from numerize_denumerize import denumerize
 from flask_cors import CORS
+from bs4 import BeautifulSoup
 
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
@@ -241,31 +242,44 @@ def reverse_thumbnail_search(thumbnail_url):
         return []
 
 # ---------------------- Instagram Endpoints ----------------------
+def third_party_html_to_dict(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    # Extract profile information
+    profile_section = soup.find('section', {'id': 'download-box-profile'})
+    profile_data = {
+        'username': profile_section.find('p', class_='h4').get_text(strip=True) if profile_section else None,
+        'full_name': profile_section.find('p', class_='text-muted').get_text(strip=True) if profile_section else None
+    }
+    # Extract first post data
+    first_post = soup.find('div', {'class': 'col-md-4'})
+    post_data = {
+        'thumbnail_url': first_post.find('video')['poster'] if first_post and first_post.find('video') else None,
+        'media_url': first_post.find('source')['src'] if first_post and first_post.find('source') else None,
+        'caption': first_post.find('p', {'class': 'text-sm'}).get_text(strip=True) if first_post and first_post.find('p', {'class': 'text-sm'}) else None,
+        'likes': first_post.find('i', {'class': 'far fa-heart'}).find_parent('small').get_text(strip=True) if first_post and first_post.find('i', {'class': 'far fa-heart'}) else None,
+        'comments': first_post.find('i', {'class': 'far fa-comment'}).find_parent('small').get_text(strip=True) if first_post and first_post.find('i', {'class': 'far fa-comment'}) else None
+    } if first_post else None
+    username = profile_data['username']
+    full_name = profile_data['full_name']
+    thumbnail_url = post_data['thumbnail_url']
+    media_url = post_data['media_url']
+    caption = post_data['caption']
+    likes = post_data['likes']
+    comments = post_data['comments']
+    return {
+        'username': username,
+        'full_name': full_name,
+        'thumbnail_url': thumbnail_url,
+        'video_url': media_url,
+        'description': caption,
+        'likes_count': denumerize.denumerize(likes),
+        'comments_count': denumerize.denumerize(comments),
+    }
+
 def get_reel_metadata(reel_url):
-    ydl_opts = {'quiet': True, 'extract_flat': True}
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            info_dict = ydl.extract_info(reel_url, download=False)
-            return {
-                'username': info_dict['channel'],
-                'full_name': info_dict['uploader'],
-                'thumbnail_url': info_dict['thumbnails'][0]['url'],
-                'video_url': info_dict['url'],
-                'likes_count': info_dict['like_count'],
-                'comments_count': info_dict['comment_count'],
-                'description': info_dict['description'],
-            }
-        except Exception as e:
-            print("Error while extracting info:", e)
-            return {
-                'username': None,
-                'full_name': None,
-                'thumbnail_url': None,
-                'video_url': reel_url,
-                'likes_count': 0,
-                'comments_count': 0,
-                'description': None,
-            }
+  r = requests.get('https://igram.website/content.php', params={'url': reel_url})
+  data = third_party_html_to_dict(r.json()['html'])
+  return data
 
 def filter_instagram_results(results):
     return [i for i in results if i['source'].lower() == 'instagram' and 'reel/' in i['link']]
