@@ -19,3 +19,13 @@ class User(UserMixin, db.Model):
             "plan": self.plan,
             "credits": self.credits
         }
+
+class SearchHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    platform = db.Column(db.String(20), nullable=False)  # 'youtube', 'tiktok', 'reel'
+    video_data = db.Column(db.JSON, nullable=False)
+    timestamp = db.Column(db.DateTime, server_default=db.func.now())
+
+    user = db.relationship('User', backref=db.backref('history', lazy=True, cascade="all, delete-orphan"))
+
