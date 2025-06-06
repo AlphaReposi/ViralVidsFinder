@@ -27,6 +27,7 @@ from numerize_denumerize import denumerize
 from flask_cors import CORS
 from bs4 import BeautifulSoup
 from models import db, User, SearchHistory
+from functools import wraps
 
 
 load_dotenv()
@@ -64,6 +65,7 @@ def user_lookup_callback(_jwt_header, jwt_data):
 # ---------------------- Utility: Credit Enforcement ----------------------
 def require_credits(required):
     def decorator(fn):
+        @wraps(fn)
         @jwt_required()
         def wrapper(*args, **kwargs):
             user = User.query.get(get_jwt_identity())
@@ -74,7 +76,6 @@ def require_credits(required):
             user.credits -= required
             db.session.commit()
             return fn(*args, **kwargs)
-        wrapper.__name__ = fn.__name__
         return wrapper
     return decorator
 
