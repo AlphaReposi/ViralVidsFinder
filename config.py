@@ -13,3 +13,6 @@ class config:
     STRIPE_PRO_PLAN_ID = "price_1RIuzaCpHVRe7A1XjH8KcFTS"
     STRIPE_ELITE_PLAN_ID = "price_1RIv0HCpHVRe7A1XcCL8m0Vz"
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_your_webhook_secret")
+    MAX_YOUTUBE_HISTORY = int(os.getenv("MAX_YOUTUBE_HISTORY", 15))
+    MAX_TIKTOK_HISTORY = int(os.getenv("MAX_TIKTOK_HISTORY", 15))
+    MAX_REEL_HISTORY = int(os.getenv("MAX_REEL_HISTORY", 15))
