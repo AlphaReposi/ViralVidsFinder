@@ -26,6 +26,8 @@ from fake_headers import Headers
 from numerize_denumerize import denumerize
 from flask_cors import CORS
 from bs4 import BeautifulSoup
+from models import db, User, SearchHistory
+
 
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
@@ -240,6 +242,75 @@ def reverse_thumbnail_search(thumbnail_url):
     except Exception as e:
         print(e)
         return []
+    
+def add_to_history(user_id, platform, metadata):
+    platform_limits = {
+        'youtube': config.config.MAX_YOUTUBE_HISTORY,
+        'tiktok': config.config.MAX_TIKTOK_HISTORY,
+        'reel': config.config.MAX_REEL_HISTORY,
+    }
+    max_items = platform_limits.get(platform, 15)
+
+    history_items = SearchHistory.query.filter_by(user_id=user_id, platform=platform)\
+        .order_by(SearchHistory.timestamp.desc()).all()
+
+    if len(history_items) >= max_items:
+        for old_item in history_items[max_items - 1:]:
+            db.session.delete(old_item)
+
+    db.session.add(SearchHistory(user_id=user_id, platform=platform, metadata=metadata))
+    db.session.commit()
+
+@app.route('/api/search-history', methods=['GET'])
+@jwt_required()
+def api_get_all_search_history():
+    user_id = get_jwt_identity()
+
+    # Platform-specific limits
+    limits = {
+        'youtube': config.config.MAX_YOUTUBE_HISTORY,
+        'tiktok': config.config.MAX_TIKTOK_HISTORY,
+        'reel': config.config.MAX_REEL_HISTORY
+    }
+
+    # Initialize all categories
+    categorized_history = {
+        'youtube': [],
+        'tiktok': [],
+        'instagram': [],
+        'other': []
+    }
+
+    # Get all history for user
+    all_entries = SearchHistory.query.filter_by(user_id=user_id).order_by(SearchHistory.timestamp.desc()).all()
+
+    # Temporary counters
+    counters = {
+        'youtube': 0,
+        'tiktok': 0,
+        'reel': 0
+    }
+
+    for entry in all_entries:
+        platform = entry.platform
+        history_item = {
+            'timestamp': entry.timestamp.isoformat(),
+            'metadata': entry.metadata
+        }
+
+        if platform in ['youtube', 'tiktok', 'reel']:
+            if counters[platform] < limits[platform]:
+                if platform == 'reel':
+                    categorized_history['instagram'].append(history_item)
+                else:
+                    categorized_history[platform].append(history_item)
+                counters[platform] += 1
+        else:
+            categorized_history['other'].append(history_item)
+
+    return jsonify(categorized_history)
+
+
 
 # ---------------------- Instagram Endpoints ----------------------
 def third_party_html_to_dict(html_content):
@@ -334,7 +405,9 @@ def search_reels(query):
 @app.route('/get-reel-metadata/', methods=['POST'])
 @require_credits(1)
 def api_get_reel_metadata():
-    return jsonify(get_reel_metadata(request.get_json()['url']))
+    data = get_reel_metadata(request.get_json()['url'])
+    add_to_history(get_jwt_identity(), 'reel', data)
+    return jsonify(data)
 
 
 @app.route('/instagram-reverse-thumbnail-search/', methods=['POST'])
@@ -409,7 +482,12 @@ def api_download_tiktok():
 @require_credits(1)
 def api_get_tiktok_metadata():
     meta = get_tiktok_metadata(request.get_json()['url'])
-    return (jsonify(meta), 200) if "error" not in meta else (jsonify(meta), 400)
+    if "error" not in meta:
+        add_to_history(get_jwt_identity(), 'tiktok', meta)
+        return jsonify(meta), 200
+    else:
+        return jsonify(meta), 400
+
 
 # Tested
 @app.route('/tiktok-reverse-thumbnail-search/', methods=['POST'])
@@ -565,7 +643,10 @@ def get_video_download_formats(video_url, max_retries=2, delay=30):
 @require_credits(1)
 def api_get_video_metadata():
     url = request.get_json()['url']
-    return jsonify(get_video_info_basic(url))
+    data = get_video_info_basic(url)
+    add_to_history(get_jwt_identity(), 'youtube', data)
+    return jsonify(data)
+
 
 # Tested
 @app.route('/download-youtube-video/', methods=['POST'])
@@ -611,8 +692,25 @@ def api_compute_similarity():
 
 # ---------------------- Run App ----------------------
 if __name__ == '__main__':
+    #with app.app_context():
+    #    db.create_all()
+
     with app.app_context():
-        db.create_all()
+        email = "dhiahanafi@example.com"
+        password = "dhiahanafi"
+        hashed_password = generate_password_hash(password)
+        plan = "pro"  # or 'basic', 'elite'
+        credits = 999
+
+        # Check if user already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            print("User already exists.")
+        else:
+            user = User(email=email, password=hashed_password, plan=plan, credits=credits)
+            db.session.add(user)
+            db.session.commit()
+            print(f"Created test user: {email} with plan: {plan} and credits: {credits}")
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port, debug=False)
 
